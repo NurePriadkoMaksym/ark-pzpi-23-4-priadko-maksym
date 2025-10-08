@@ -1,4 +1,4 @@
-# ark-pzpi-23-4-borshch-anatolii
+# ark-pzpi-23-4-priadko-maksym
 
 ПЗПІ-23-4
 
