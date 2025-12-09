@@ -9,6 +9,7 @@ namespace PythonWiki.Services.Implementations;
 public class ArticleService : IArticleService
 {
     private readonly PythonWikiDbContext _db;
+    private readonly IRoleProgressionService _roleProgressionService;
 
     public ArticleService(PythonWikiDbContext db)
     {
@@ -159,7 +160,81 @@ public class ArticleService : IArticleService
             AuthorId = article.AuthorId
         };
     }
+    public async Task<List<ArticleResponse>> GetAvailableArticlesAsync(int userId)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(x => x.Id == userId);
+        if (user == null)
+            throw new InvalidOperationException("User not found.");
+
+        var articles = await _db.Articles
+            .Where(a =>
+                !a.IsLocked || user.XP >= a.XPRequired
+            )
+            .OrderBy(a => a.XPRequired)
+            .ToListAsync();
+
+        return articles.Select(a => new ArticleResponse
+        {
+            Id = a.Id,
+            Title = a.Title,
+            Content = a.Content,
+            XPReward = a.XPReward,
+            XPRequired = a.XPRequired,
+            IsLocked = a.IsLocked && user.XP < a.XPRequired,
+
+            AuthorId = a.AuthorId
+        }).ToList();
+    }
 
 
+    public async Task<ArticleResponse> GetArticleByIdAsync(int userId, int articleId)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.Id == userId);
+        if (user == null)
+            throw new InvalidOperationException("User not found.");
 
+        var article = await _db.Articles.FirstOrDefaultAsync(a => a.Id == articleId);
+        if (article == null)
+            throw new InvalidOperationException("Article not found.");
+        if (article.IsLocked && user.XP < article.XPRequired)
+            throw new InvalidOperationException("Not enough XP to access this article.");
+
+        var progress = await _db.UserArticleProgresses
+            .FirstOrDefaultAsync(p => p.UserId == userId && p.ArticleId == articleId);
+
+        bool gainedXp = false;
+        if (progress == null)
+        {
+            progress = new UserArticleProgress
+            {
+                UserId = userId,
+                ArticleId = articleId,
+                IsCompleted = true
+            };
+
+            _db.UserArticleProgresses.Add(progress);
+
+            user.XP += article.XPReward;
+            gainedXp = true;
+        }
+
+        await _db.SaveChangesAsync();
+
+        if (gainedXp)
+        {
+            await _roleProgressionService.CheckAndUpgradeRoleAsync(userId);
+        }
+
+        return new ArticleResponse
+        {
+            Id = article.Id,
+            Title = article.Title,
+            Content = article.Content,
+            XPReward = article.XPReward,
+            XPRequired = article.XPRequired,
+            IsLocked = article.IsLocked && user.XP < article.XPRequired,
+
+            AuthorId = article.AuthorId
+        };
+    }
 }

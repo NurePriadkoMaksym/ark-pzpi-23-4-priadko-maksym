@@ -94,6 +94,21 @@ public class ArticleController : ControllerBase
             return NotFound(new { error = ex.Message });
         }
     }
-
+    [Authorize]
+    [HttpGet("available")]
+    public async Task<IActionResult> GetAvailableArticles()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var articles = await _articleService.GetAvailableArticlesAsync(userId);
+        return Ok(articles);
+    }
+    [Authorize]
+    [HttpGet("{id:int}")]
+    public async Task<IActionResult> GetArticle(int id)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        var article = await _articleService.GetArticleByIdAsync(userId, id);
+        return Ok(article);
+    }
 
 }

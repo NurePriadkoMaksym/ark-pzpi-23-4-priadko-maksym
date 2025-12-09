@@ -9,4 +9,6 @@ public interface IArticleService
     Task AddLinkAsync(int fromArticleId, int toArticleId);
     Task RemoveLinkAsync(int fromArticleId, int toArticleId);
     Task<ArticleResponse> UpdateArticleAsync(int articleId, int editorId, UpdateArticleRequest request);
+    Task<List<ArticleResponse>> GetAvailableArticlesAsync(int userId);
+    Task<ArticleResponse> GetArticleByIdAsync(int userId, int articleId);
 }
