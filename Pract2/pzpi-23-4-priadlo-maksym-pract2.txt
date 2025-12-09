@@ -1,0 +1,308 @@
+﻿Міністерство освіти та науки України
+Харківський національний університет радіоелектроніки
+
+
+Кафедра Програмної Інженерії
+
+
+
+
+Звіт
+з дисципліни «Аналіз та рефакторинг коду»
+Практична робота №2
+
+
+
+
+
+
+Виконав:                                                                               Перевірив:
+ст. гр. ПЗПІ-23-4                                                                  Сокорчук І. П.
+Прядко М. А.
+
+
+
+
+
+
+Харків 2025
+
+
+
+1 ІСТОРІЯ ЗМІН
+№ДатаВерсія звітуОпис змін та виправлень120.11.20251.0Зроблено звіт
+1 МЕТА
+     Метою даної роботи є навчитися основним методам рефакторингу коду на основі реальних прикладів. Потрібно навчитися ідентифікувати проблеми в коді та використовувати відповідні методи рефакторингу для покращення його якості.
+
+2 ХІД РОБОТИ
+     Рефакторинг — це процес покращення внутрішньої структури програмного коду без зміни його зовнішньої поведінки.
+Мета рефакторингу:
+• поліпшення читабельності;
+• зменшення дублювання;
+• підвищення розширюваності;
+• спрощення супроводу;
+• зниження когнітивного навантаження на розробника.
+
+Extract Method:
+• Виділення частини коду в окремий чітко названий метод для:
+• зменшення розміру функцій
+• кращої читабельності
+• повторного використання
+
+Replace Conditional with Polymorphism:
+• Заміна громіздкого switch/if-ланцюга на об’єктно-орієнтовану структуру з віртуальними методами.
+• Позбавлення складних умов
+• застосування принципу Open/Closed
+
+Inline Method:
+• Перенесення тіла методу безпосередньо в місця його виклику з подальшим видаленням самого методу.
+• Усунути надмірну абстракцію 
+• Зменшення кількості дрібних методів робить структуру логіки більш лінійною й очевидною;
+• Ліквідувати зайву делегацію
+• Очистити код від "методів, що втратили сенс"
+
+  У цьому прикладі була реалізована функція аналізу файлу. Вона одночасно відкривала файл, читала кожен рядок, рахувала кількість слів, визначала довжину кожного слова і виводила результат. Метод є занадто великим, а логіка переплелася з операціями вводу-виводу.
+// Поганий приклад:
+void processFile(const std::string& path) {
+    std::ifstream file(path);
+    if (!file.is_open()) {
+        std::cout << "Error opening file\n";
+        return;
+    }
+
+    std::string line;
+    int totalWords = 0;
+    int longest = 0;
+
+    while (std::getline(file, line)) {
+        std::stringstream ss(line);
+        std::string word;
+        int count = 0;
+
+        while (ss >> word) {
+            count++;
+            if (word.length() > longest) {
+                longest = word.length();
+            }
+        }
+
+        totalWords += count;
+    }
+
+    std::cout << "Total words: " << totalWords << "\n";
+    std::cout << "Longest word length: " << longest << "\n";
+}
+
+  Для рефакторингу будемо використовувати Extract Method. У цьому випадку ми виділяємо логіку обробки одного рядка та виводу статистики в окремі методи.
+
+//Гарний приклад
+class FileProcessor {
+public:
+    void processFile(const std::string& path) {
+        std::ifstream file(path);
+        if (!file.is_open()) {
+            std::cout << "Error opening file\n";
+            return;
+        }
+
+        int totalWords = 0;
+        int longest = 0;
+
+        processLines(file, totalWords, longest);
+        printStats(totalWords, longest);
+    }
+
+private:
+    void processLines(std::ifstream& file, int& totalWords, int& longest) {
+        std::string line;
+
+        while (std::getline(file, line)) {
+            processLine(line, totalWords, longest);
+        }
+    }
+
+    void processLine(const std::string& line, int& totalWords, int& longest) {
+        std::stringstream ss(line);
+        std::string word;
+        int count = 0;
+
+        while (ss >> word) {
+            count++;
+            longest = std::max(longest, (int)word.length());
+        }
+
+        totalWords += count;
+    }
+
+    void printStats(int totalWords, int longest) {
+        std::cout << "Total words: " << totalWords << "\n";
+        std::cout << "Longest word length: " << longest << "\n";
+    }
+};
+Переваги після рефакторингу
+• Чітка структура: кожний метод відповідає за одну дію.
+• Полегшене тестування: можна тестувати processLine() окремо.
+• Менша когнітивна складність — основний метод став коротким.
+• Легко додавати нові статистики без переписування всього коду.
+
+   У модулі з обробки замовлень використовувався код, що залежав від типу доставки: стандартна, експрес, міжнародна. Це реалізовано через великий if-else. Додавання нового типу доставки потребує зміни основного методу. Гілки умов ростуть, роблячи код нечитабельним. Порушення принципу Open/Closed.
+//Поганий приклад
+double calculateDelivery(const std::string& type, double base) {
+    if (type == "standard") {
+        return base;
+    } else if (type == "express") {
+        return base + 40;
+    } else if (type == "international") {
+        return base + 120;
+    }
+    return base;
+}
+     Для рефакторингу будемо використовувати Replace Conditional with Polymorphism. Створимо базовий клас і три дочірні класи, кожен зі своєю логікою розрахунку.
+//Гарний приклад
+class Delivery {
+public:
+    virtual ~Delivery() = default;
+    virtual double cost(double base) = 0;
+};
+
+class StandardDelivery : public Delivery {
+public:
+    double cost(double base) override { return base; }
+};
+
+class ExpressDelivery : public Delivery {
+public:
+    double cost(double base) override { return base + 40; }
+};
+
+class InternationalDelivery : public Delivery {
+public:
+    double cost(double base) override { return base + 120; }
+};
+
+std::unique_ptr<Delivery> makeDelivery(const std::string& type) {
+    if (type == "standard") return std::make_unique<StandardDelivery>();
+    if (type == "express") return std::make_unique<ExpressDelivery>();
+    if (type == "international") return std::make_unique<InternationalDelivery>();
+    return std::make_unique<StandardDelivery>();
+}
+Переваги після рефакторингу
+• Дотримано Open/Closed: додавання нового типу доставки не змінює існуючий код.
+• Зменшено дублювання логіки.
+• Можна тестувати кожен тип доставки окремо.
+
+     У модулі розрахунку вартості замовлення існує метод getBasePrice(), який колись містив складну логіку, але з часом був спрощений і тепер лише повертає значення поля. Через це він не додає цінності, але створює зайвий рівень абстракції та ускладнює читання коду.
+//Поганий приклад
+// Order.h
+class Order {
+public:
+    Order(double basePrice, double discount)
+        : basePrice(basePrice), discount(discount) {}
+
+    double calculateTotal() const;
+
+private:
+    double getBasePrice() const;
+    double basePrice;
+    double discount;
+};
+
+// Order.cpp
+double Order::getBasePrice() const {
+    // Колись тут була складна логіка, але тепер метод просто повертає поле
+    return basePrice;
+}
+
+double Order::calculateTotal() const {
+    double price = getBasePrice();
+    return price - (price * discount);
+}
+     Для рефакторингу будемо застосовувати Inline Method. Метод getBasePrice() більше не виконує жодної логічної роботи, а лише повертає значення поля basePrice. Такий метод вносить непотрібну абстракцію: розробник очікує певну логіку за назвою, але натомість бачить простий геттер, який у цьому класі не має сенсу, бо використовується лише один раз.
+//Гарний приклад
+// Order.h
+class Order {
+public:
+    Order(double basePrice, double discount)
+        : basePrice(basePrice), discount(discount) {}
+
+    double calculateTotal() const;
+
+private:
+    double basePrice;
+    double discount;
+};
+
+// Order.cpp
+double Order::calculateTotal() const {
+    double price = basePrice;      // Інлайн замість getBasePrice()
+    return price - (price * discount);
+}
+
+
+Переваги після рефакторингу:
+• Менше зайвих переходів читачу не потрібно відкривати інший метод, щоб дізнатися, що він просто повертає поле.
+• Спрощення структури класу один непотрібний метод прибрано.
+• Код став коротшим та прозорішим зрозуміло, що використовується безпосередньо поле basePrice.
+• Зменшення рівня абстракції логіка стала більш лінійною, що полегшує підтримку.
+• Покращена навігація немає ланцюжка дрібних делегуючих викликів.
+
+3 ВИСНОВКИ
+     Після виконання рефакторингу наведені приклади коду стали значно більш структурованими та читабельними. Виділення логіки в окремі методи, усунення зайвих абстракцій та заміна умовних конструкцій поліморфізмом дали змогу підвищити рівень абстракції й зробити основні методи лаконічнішими та зрозумілішими.
+     Складність початкових функцій зменшилась завдяки застосуванню прийомів Extract Method та Inline Method, що дозволило позбутися дублювання логіки й зайвих переходів між методами. Крім того, використання принципу Replace Conditional with Polymorphism покращило архітектуру коду та забезпечило відповідність принципу Open/Closed, дозволяючи легко додавати нові типи поведінки без зміни вже існуючих класів.
+     Виділені невеликі методи, такі як обробка рядка чи окремі класи доставки, тепер можна тестувати незалежно, що спрощує створення юніт-тестів і підвищує їхню надійність. Завдяки зменшенню логічної заплутаності та дублювання рефакторинг зробив код більш передбачуваним і зручним для подальшого супроводу.
+     Загалом, проведені техніки рефакторингу покращили підтримуваність, гнучкість, масштабованість та тестованість системи, при цьому зовнішня поведінка програмного забезпечення залишилася незмінною, що повністю відповідає меті якісного рефакторингу.
+4 ВИКОРИСТАНІ ДЖЕРЕЛА
+1. Refactoring and Design Patterns. Refactoring and Design Patterns. URL: https://refactoring.guru/ (дата звернення: 20.11.2025).
+
+
+
+ДОДАТОК А
+Відеозапис
+Посилання на відео: https://youtu.be/YF9lU2g4eL4
+Хронологічний опис відеозапису:
+00:00 – Вступ
+00:22 – Що таке рефакторинг?
+00:46 – Обрані методи рефакторингу
+02:08 – Приклад 1: Extract Method
+03:28 – Приклад 2: Replace Conditional with Polymorphism
+05:36 – Приклад 3: Inline Method
+07:30 – Висновки
+
+ДОДАТОК Б
+Скріншоти презентації
+
+Рисунок Б.1 - Титульний лист
+
+
+Рисунок Б.2 – Що таке рефакторинг?
+
+Рисунок Б.3 – Обрані методи рефакторингу
+
+
+Рисунок Б.4 – Приклад 1: Extract Method (Поганий приклад)
+
+Рисунок Б.5 - Приклад 1: Extract Method (Гарний приклад)
+
+
+Рисунок Б.6 - Приклад 2: Replace Conditional with Polymorphism
+
+
+
+Рисунок Б.7 - Приклад 2: Replace Conditional with Polymorphism
+
+
+Рисунок Б.8 - Приклад 3: Inline Method
+
+
+
+
+Рисунок Б.9 - Приклад 3: Inline Method
+
+Рисунок Б.10 - Висновки
+
+Рисунок Б.15 - Використані джерела
+
+
+2
+
+
