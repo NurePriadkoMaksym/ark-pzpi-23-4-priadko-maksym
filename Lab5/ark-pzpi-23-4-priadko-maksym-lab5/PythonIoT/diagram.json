@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "author": "Максим Прядко",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn",
+      "top": -32.2,
+      "left": 163.2,
+      "attrs": { "color": "blue" }
+    },
+    { "type": "wokwi-buzzer", "id": "buzz", "top": 60, "left": 140, "attrs": { "volume": "0.3" } },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": -61,
+      "left": -144,
+      "attrs": { "color": "green", "xray": "1" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "btn:1.r", "esp:2", "green", [] ],
+    [ "btn:2.r", "esp:GND.2", "black", [] ],
+    [ "buzz:1", "esp:15", "green", [] ],
+    [ "buzz:2", "esp:GND.2", "black", [] ],
+    [ "btn1:1.r", "esp:4", "green", [] ],
+    [ "btn1:2.r", "esp:GND.2", "black", [] ]
+  ],
+  "dependencies": {}
+}
